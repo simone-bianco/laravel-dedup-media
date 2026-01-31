@@ -22,7 +22,7 @@ return new class extends Migration
 
         // Pivot table for polymorphic many-to-many relationship
         Schema::create('dedup_mediables', function (Blueprint $table) {
-            $table->uuid('id')->primary();
+            $table->id();
             $table->foreignUuid('dedup_media_id')
                 ->constrained('dedup_media')
                 ->cascadeOnDelete();
