@@ -4,6 +4,7 @@ namespace SimoneBianco\LaravelDedupMedia\Services;
 
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use InvalidArgumentException;
 use SimoneBianco\LaravelDedupMedia\Contracts\Hasher;
 use SimoneBianco\LaravelDedupMedia\Contracts\PathGenerator;
 use SimoneBianco\LaravelDedupMedia\Models\DedupMedia;
@@ -32,7 +33,7 @@ class DedupMediaService
         ?string $disk = null
     ): DedupMedia {
         if (!file_exists($sourcePath)) {
-            throw new \InvalidArgumentException("Source file not found: {$sourcePath}");
+            throw new InvalidArgumentException("Source file not found: {$sourcePath}");
         }
 
         $hash = $this->hasher->hashFile($sourcePath);
@@ -128,9 +129,9 @@ class DedupMediaService
         ?string $disk = null
     ): DedupMedia {
         $content = base64_decode($base64, true);
-        
+
         if ($content === false) {
-            throw new \InvalidArgumentException('Invalid base64 content');
+            throw new InvalidArgumentException('Invalid base64 content');
         }
 
         return $this->saveFromContent($content, $originalName, $mimeType, $disk);
@@ -170,7 +171,7 @@ class DedupMediaService
         if (!file_exists($path)) {
             return false;
         }
-        
+
         $hash = $this->hasher->hashFile($path);
         return $this->existsByHash($hash);
     }
@@ -190,7 +191,7 @@ class DedupMediaService
     {
         $baseDir = config('dedup_media.directory', 'dedup-media');
         $generatedPath = $this->pathGenerator->generate($hash, $extension);
-        
+
         return rtrim($baseDir, '/') . '/' . ltrim($generatedPath, '/');
     }
 }
