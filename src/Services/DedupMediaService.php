@@ -22,17 +22,16 @@ class DedupMediaService
     /**
      * Save media from a file path.
      *
-     * @param string $sourcePath Absolute path to the source file
-     * @param string|null $originalName Original filename (defaults to basename of path)
-     * @param string|null $disk Storage disk (defaults to config)
-     * @return DedupMedia
+     * @param  string  $sourcePath  Absolute path to the source file
+     * @param  string|null  $originalName  Original filename (defaults to basename of path)
+     * @param  string|null  $disk  Storage disk (defaults to config)
      */
     public function saveFromPath(
         string $sourcePath,
         ?string $originalName = null,
         ?string $disk = null
     ): DedupMedia {
-        if (!file_exists($sourcePath)) {
+        if (! file_exists($sourcePath)) {
             throw new InvalidArgumentException("Source file not found: {$sourcePath}");
         }
 
@@ -58,6 +57,9 @@ class DedupMediaService
             fclose($stream);
         }
 
+        // Get image dimensions if applicable
+        $dimensions = $this->getImageDimensions($sourcePath);
+
         // Create media record
         return DedupMedia::create([
             'hash' => $hash,
@@ -66,6 +68,8 @@ class DedupMediaService
             'original_name' => $originalName,
             'mime_type' => mime_content_type($sourcePath) ?: null,
             'size' => filesize($sourcePath),
+            'width' => $dimensions['width'],
+            'height' => $dimensions['height'],
             'reference_count' => 0,
         ]);
     }
@@ -73,11 +77,10 @@ class DedupMediaService
     /**
      * Save media from string content.
      *
-     * @param string $content File content
-     * @param string $originalName Original filename (used for extension)
-     * @param string|null $mimeType MIME type
-     * @param string|null $disk Storage disk
-     * @return DedupMedia
+     * @param  string  $content  File content
+     * @param  string  $originalName  Original filename (used for extension)
+     * @param  string|null  $mimeType  MIME type
+     * @param  string|null  $disk  Storage disk
      */
     public function saveFromContent(
         string $content,
@@ -101,6 +104,9 @@ class DedupMediaService
         // Save content to storage
         Storage::disk($disk)->put($relativePath, $content);
 
+        // Get image dimensions from content
+        $dimensions = $this->getImageDimensionsFromContent($content);
+
         // Create media record
         return DedupMedia::create([
             'hash' => $hash,
@@ -109,6 +115,8 @@ class DedupMediaService
             'original_name' => $originalName,
             'mime_type' => $mimeType,
             'size' => strlen($content),
+            'width' => $dimensions['width'],
+            'height' => $dimensions['height'],
             'reference_count' => 0,
         ]);
     }
@@ -116,11 +124,10 @@ class DedupMediaService
     /**
      * Save media from base64 encoded content.
      *
-     * @param string $base64 Base64 encoded content
-     * @param string $originalName Original filename
-     * @param string|null $mimeType MIME type
-     * @param string|null $disk Storage disk
-     * @return DedupMedia
+     * @param  string  $base64  Base64 encoded content
+     * @param  string  $originalName  Original filename
+     * @param  string|null  $mimeType  MIME type
+     * @param  string|null  $disk  Storage disk
      */
     public function saveFromBase64(
         string $base64,
@@ -140,9 +147,8 @@ class DedupMediaService
     /**
      * Save media from an uploaded file.
      *
-     * @param UploadedFile $file The uploaded file
-     * @param string|null $disk Storage disk
-     * @return DedupMedia
+     * @param  UploadedFile  $file  The uploaded file
+     * @param  string|null  $disk  Storage disk
      */
     public function saveFromUpload(
         UploadedFile $file,
@@ -168,11 +174,12 @@ class DedupMediaService
      */
     public function existsByPath(string $path): bool
     {
-        if (!file_exists($path)) {
+        if (! file_exists($path)) {
             return false;
         }
 
         $hash = $this->hasher->hashFile($path);
+
         return $this->existsByHash($hash);
     }
 
@@ -192,6 +199,54 @@ class DedupMediaService
         $baseDir = config('dedup_media.directory', 'dedup-media');
         $generatedPath = $this->pathGenerator->generate($hash, $extension);
 
-        return rtrim($baseDir, '/') . '/' . ltrim($generatedPath, '/');
+        return rtrim($baseDir, '/').'/'.ltrim($generatedPath, '/');
+    }
+
+    /**
+     * Extract image dimensions from a file path.
+     *
+     * @param  string  $path  Absolute path to the file
+     * @return array{width: int|null, height: int|null}
+     */
+    protected function getImageDimensions(string $path): array
+    {
+        $width = null;
+        $height = null;
+
+        try {
+            $imageInfo = @getimagesize($path);
+            if ($imageInfo !== false && isset($imageInfo[0], $imageInfo[1])) {
+                $width = $imageInfo[0];
+                $height = $imageInfo[1];
+            }
+        } catch (\Throwable) {
+            // Not an image or unable to read dimensions
+        }
+
+        return ['width' => $width, 'height' => $height];
+    }
+
+    /**
+     * Extract image dimensions from raw content.
+     *
+     * @param  string  $content  File content
+     * @return array{width: int|null, height: int|null}
+     */
+    protected function getImageDimensionsFromContent(string $content): array
+    {
+        $width = null;
+        $height = null;
+
+        try {
+            $imageInfo = @getimagesizefromstring($content);
+            if ($imageInfo !== false && isset($imageInfo[0], $imageInfo[1])) {
+                $width = $imageInfo[0];
+                $height = $imageInfo[1];
+            }
+        } catch (\Throwable) {
+            // Not an image or unable to read dimensions
+        }
+
+        return ['width' => $width, 'height' => $height];
     }
 }

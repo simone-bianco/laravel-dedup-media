@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\Storage;
  * @property string $original_name Original filename
  * @property string|null $mime_type MIME type
  * @property int $size File size in bytes
+ * @property int|null $width Image width in pixels (null if not an image)
+ * @property int|null $height Image height in pixels (null if not an image)
  * @property int $reference_count Number of models referencing this media
  * @property \Illuminate\Support\Carbon $created_at
  * @property \Illuminate\Support\Carbon $updated_at
@@ -36,6 +38,8 @@ class DedupMedia extends Model
         'original_name',
         'mime_type',
         'size',
+        'width',
+        'height',
         'reference_count',
     ];
 
@@ -43,6 +47,8 @@ class DedupMedia extends Model
     {
         return [
             'size' => 'integer',
+            'width' => 'integer',
+            'height' => 'integer',
             'reference_count' => 'integer',
         ];
     }
@@ -139,5 +145,35 @@ class DedupMedia extends Model
     public function getStream()
     {
         return Storage::disk($this->disk)->readStream($this->path);
+    }
+
+    /**
+     * Check if this media is an image (has dimensions).
+     */
+    public function isImage(): bool
+    {
+        return $this->width !== null && $this->height !== null;
+    }
+
+    /**
+     * Check if this media has image dimensions stored.
+     */
+    public function hasImageDimensions(): bool
+    {
+        return $this->isImage();
+    }
+
+    /**
+     * Get the aspect ratio (width / height).
+     *
+     * @return float|null Returns null if not an image
+     */
+    public function getAspectRatio(): ?float
+    {
+        if (!$this->isImage() || $this->height === 0) {
+            return null;
+        }
+
+        return $this->width / $this->height;
     }
 }
